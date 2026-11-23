@@ -1,0 +1,72 @@
+name: Build TrollStore IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: brew install xcodegen ldid
+
+      - name: Generate Xcode project
+        run: xcodegen generate --spec project.yml
+
+      - name: Build unsigned app
+        run: |
+          xcodebuild \
+            -project WakeUpIOS.xcodeproj \
+            -scheme WakeUpIOS \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath ./build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            clean build
+
+      - name: Fakesign binary with ldid
+        run: |
+          APP="build/Build/Products/Release-iphoneos/WakeUpIOS.app"
+          test -d "$APP" || { echo "App bundle not found"; find build -name '*.app'; exit 1; }
+          ldid -Sentitlements.plist "$APP/WakeUpIOS"
+
+      - name: Pack IPA
+        run: |
+          APP="build/Build/Products/Release-iphoneos/WakeUpIOS.app"
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qry WakeUpPower-TrollStore.ipa Payload
+          ls -lh WakeUpPower-TrollStore.ipa
+
+      - name: Upload IPA as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WakeUpPower-TrollStore
+          path: WakeUpPower-TrollStore.ipa
+          if-no-files-found: error
+
+      - name: Publish release with install link
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: WakeUpPower for TrollStore
+          body: |
+            用巨魔打开「文件」App 中的本 IPA，或在 Safari 中打开下面的链接安装：
+
+            `apple-magnifier://install?url=https://github.com/${{ github.repository }}/releases/latest/download/WakeUpPower-TrollStore.ipa`
+
+            如果提示证书或签名问题，确认已安装 TrollStore 2.0+。
+          files: WakeUpPower-TrollStore.ipa

@@ -1,0 +1,61 @@
+name: WakeUpIOS
+options:
+  bundleIdPrefix: com.wakeup
+  deploymentTarget:
+    iOS: "15.0"
+  createIntermediateGroups: true
+  sortGroupsByPath: false
+
+settings:
+  SWIFT_VERSION: "5.0"
+  TARGETED_DEVICE_FAMILY: "1,2"
+  IPHONEOS_DEPLOYMENT_TARGET: "15.0"
+  CODE_SIGNING_ALLOWED: NO
+  CODE_SIGNING_REQUIRED: NO
+  CODE_SIGN_IDENTITY: ""
+  DEVELOPMENT_TEAM: ""
+  ENABLE_BITCODE: NO
+  SWIFT_STRICT_CONCURRENCY: minimal
+
+configs:
+  Debug: debug
+  Release: release
+
+targets:
+  WakeUpIOS:
+    type: application
+    platform: iOS
+    sources:
+      - path: WakeUpIOS
+    settings:
+      configs:
+        Debug:
+          SWIFT_OPTIMIZATION_LEVEL: "-Onone"
+        Release:
+          SWIFT_OPTIMIZATION_LEVEL: "-O"
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.wakeup.power.ios
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: "1.0"
+    info:
+      path: WakeUpIOS/Info.plist
+      properties:
+        CFBundleDevelopmentRegion: zh_CN
+        CFBundleDisplayName: 远程开机·功率
+        CFBundleExecutable: $(EXECUTABLE_NAME)
+        CFBundleIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER)
+        CFBundleInfoDictionaryVersion: "6.0"
+        CFBundleName: $(PRODUCT_NAME)
+        CFBundlePackageType: APPL
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSRequiresIPhoneOS: true
+        UILaunchScreen: {}
+        UIRequiredDeviceCapabilities:
+          - arm64
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
