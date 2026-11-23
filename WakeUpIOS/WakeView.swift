@@ -83,7 +83,7 @@ struct WakeView: View {
                 doLogin()
             } label: {
                 if busy { ProgressView() }
-                else { Text("登 录").fontWeight(.semibold) }
+                else { Text("登 录").font(.headline) }
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
@@ -160,7 +160,7 @@ struct WakeView: View {
                     else { alertText = "请先在列表中选中一台设备" }
                 } label: {
                     if busy { ProgressView() }
-                    else { Label("开 机", systemImage: "power").fontWeight(.semibold) }
+                    else { Label("开 机", systemImage: "power").font(.headline) }
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)

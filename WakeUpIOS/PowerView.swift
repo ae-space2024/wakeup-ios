@@ -91,7 +91,7 @@ struct PowerView: View {
 
             Button { doLogin() } label: {
                 if busy { ProgressView() }
-                else { Text("登 录").fontWeight(.semibold) }
+                else { Text("登 录").font(.headline) }
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)

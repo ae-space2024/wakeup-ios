@@ -36,9 +36,9 @@ struct PgyDevice: Decodable, Identifiable {
         connType  = try c.decodeIfPresent(String.self, forKey: .connType)
         ip        = try c.decodeIfPresent(String.self, forKey: .ip)
         if let b = try? c.decodeIfPresent(Bool.self, forKey: .isonline) {
-            isonline = b ?? false
+            isonline = b
         } else if let n = try? c.decodeIfPresent(Int.self, forKey: .isonline) {
-            isonline = (n ?? 0) != 0
+            isonline = n != 0
         } else {
             isonline = false
         }

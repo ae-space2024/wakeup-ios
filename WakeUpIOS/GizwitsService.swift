@@ -39,14 +39,14 @@ struct GizDevice: Decodable, Identifiable {
         if let n = try? c.decodeIfPresent(Int.self, forKey: .wssPort) {
             wssPort = n
         } else if let s = try? c.decodeIfPresent(String.self, forKey: .wssPort) {
-            wssPort = s.flatMap { Int($0) }
+            wssPort = Int(s)
         } else {
             wssPort = nil
         }
         if let b = try? c.decodeIfPresent(Bool.self, forKey: .isOnline) {
             isOnline = b
         } else if let n = try? c.decodeIfPresent(Int.self, forKey: .isOnline) {
-            isOnline = (n ?? 0) != 0
+            isOnline = n != 0
         } else {
             isOnline = nil
         }
