@@ -7,6 +7,6 @@
     <key>com.apple.developer.team-identifier</key>
     <string>A1B2C3D4E5</string>
     <key>get-task-allow</key>
-    <true/>
+    <false/>
 </dict>
 </plist>
