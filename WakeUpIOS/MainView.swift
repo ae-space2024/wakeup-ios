@@ -138,16 +138,16 @@ struct MainView: View {
                     .font(.caption).foregroundColor(.gray)
 
                 if !state.pgyAccounts.isEmpty {
-                    Menu("选择已保存账户") {
+                    Menu("选择已保存账户", content: {
                         ForEach(state.pgyAccounts) { a in
                             Button(a.sn) {
                                 wakeSn = a.sn
                                 wakePassword = a.rememberPassword ? state.pgyPassword(for: a.sn) : ""
                             }
                         }
-                    } label: {
-                        Text("选择已保存账户").font(.caption).foregroundColor(.gray)
-                    }
+                    })
+                    .foregroundColor(.gray)
+                    .font(.caption)
                 }
             }
 
@@ -284,14 +284,16 @@ struct MainView: View {
                     .font(.caption).foregroundColor(.secondary)
 
                 if !state.gizAccounts.isEmpty {
-                    Menu("选择已保存账户") {
+                    Menu("选择已保存账户", content: {
                         ForEach(state.gizAccounts) { a in
                             Button(a.username) {
                                 powerUsername = a.username
                                 powerPassword = a.rememberPassword ? state.gizPassword(for: a.username) : ""
                             }
                         }
-                    }
+                    })
+                    .foregroundColor(.gray)
+                    .font(.caption)
                 }
             }
 
