@@ -42,6 +42,8 @@ jobs:
           test -d "$APP" || { echo "App bundle not found"; find build -name '*.app'; exit 1; }
           echo "=== Before ldid ==="
           ls -la "$APP/WakeUpIOS"
+          echo "=== Remove existing signature (if any) ==="
+          codesign --remove-signature "$APP/WakeUpIOS" 2>&1 || true
           echo "=== ldid -S entitlements.plist ==="
           ldid -S entitlements.plist "$APP/WakeUpIOS"
           echo "=== After ldid ==="
