@@ -27,8 +27,10 @@ struct MainView: View {
     @State private var powerAlertText: String? = nil
     @State private var powerTimer: Timer? = nil
     @State private var powerExpanded = false
+    @State private var blinkOn = true
 
     private let timer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
+    private let blinkPub = Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()
 
     var body: some View {
         ScrollView {
@@ -80,6 +82,7 @@ struct MainView: View {
                 DispatchQueue.main.async { state.gizStatus = msg }
             }
         }
+        .onReceive(blinkPub) { _ in blinkOn.toggle() }
         .onDisappear { gizService.stop() }
     }
 
@@ -407,13 +410,11 @@ struct MainView: View {
             color = .red
             blink = false
         }
-        return TimelineView(.periodic(from: .now, by: 1.0)) { context in
-            Circle()
-                .fill(color)
-                .frame(width: 10, height: 10)
-                .opacity(blink ? (context.phase.value < 0.5 ? 1.0 : 0.25) : 1.0)
-                .shadow(color: color.opacity(0.6), radius: 4)
-        }
+        return Circle()
+            .fill(color)
+            .frame(width: 10, height: 10)
+            .opacity(blink ? (blinkOn ? 1.0 : 0.25) : 1.0)
+            .shadow(color: color.opacity(0.6), radius: 4)
     }
 
     private var statusText: String {
