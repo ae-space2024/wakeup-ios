@@ -100,11 +100,13 @@ struct MainView: View {
             )
 
             if wakeExpanded {
-                VStack(spacing: 12) {
-                    if let account = state.activePgy, !account.accessToken.isEmpty {
-                        wakeMainContent
-                    } else {
-                        wakeLoginContent
+                darkPanel {
+                    VStack(spacing: 12) {
+                        if let account = state.activePgy, !account.accessToken.isEmpty {
+                            wakeMainContent
+                        } else {
+                            wakeLoginContent
+                        }
                     }
                 }
                 .padding(12)
@@ -119,19 +121,21 @@ struct MainView: View {
         VStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    Text("SN 码").frame(width: 50, alignment: .trailing)
+                    Text("SN 码").frame(width: 50, alignment: .trailing).foregroundColor(.gray)
                     TextField("路由器 SN 码", text: $wakeSn)
                         .textFieldStyle(.roundedBorder)
+                        .foregroundColor(.white)
                         .autocapitalization(.none)
                         .disableAutocorrection(true)
                 }
                 HStack {
-                    Text("密码").frame(width: 50, alignment: .trailing)
+                    Text("密码").frame(width: 50, alignment: .trailing).foregroundColor(.gray)
                     SecureField("设备密码", text: $wakePassword)
                         .textFieldStyle(.roundedBorder)
+                        .foregroundColor(.white)
                 }
                 Toggle("记住 SN 码和密码", isOn: $wakeRemember)
-                    .font(.caption).foregroundColor(.secondary)
+                    .font(.caption).foregroundColor(.gray)
 
                 if !state.pgyAccounts.isEmpty {
                     Menu("选择已保存账户") {
@@ -141,6 +145,8 @@ struct MainView: View {
                                 wakePassword = a.rememberPassword ? state.pgyPassword(for: a.sn) : ""
                             }
                         }
+                    } label: {
+                        Text("选择已保存账户").font(.caption).foregroundColor(.gray)
                     }
                 }
             }
@@ -154,7 +160,7 @@ struct MainView: View {
             .disabled(wakeBusy || wakeSn.isEmpty || wakePassword.isEmpty)
 
             Text(wakeMessage)
-                .font(.caption).foregroundColor(.secondary)
+                .font(.caption).foregroundColor(.gray)
                 .multilineTextAlignment(.center)
         }
     }
@@ -175,19 +181,21 @@ struct MainView: View {
                 } label: {
                     Label(state.activePgy?.sn ?? "账户", systemImage: "person.circle")
                         .font(.caption)
+                        .foregroundColor(.gray)
                 }
                 Button { Task { await loadWakeDevices() } } label: {
                     Image(systemName: "arrow.clockwise")
                 }.font(.caption)
+                    .foregroundColor(.gray)
                     .disabled(wakeBusy)
                 Spacer()
-                Button("退出") { wakeLogout() }.font(.caption)
+                Button("退出") { wakeLogout() }.font(.caption).foregroundColor(.gray)
             }
 
             if state.pgyDevices.isEmpty {
                 VStack(spacing: 8) {
                     ProgressView()
-                    Text("正在获取设备列表...").font(.caption).foregroundColor(.secondary)
+                    Text("正在获取设备列表...").font(.caption).foregroundColor(.gray)
                 }
             } else {
                 List(state.pgyDevices, id: \.mac, selection: $wakeSelectedMac) { dev in
@@ -195,22 +203,23 @@ struct MainView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text((dev.hostname ?? "").isEmpty ? "未命名设备" : dev.hostname!)
                                 .font(.subheadline)
-                            Text(dev.mac).font(.caption.monospaced()).foregroundColor(.secondary)
+                                .foregroundColor(.white)
+                            Text(dev.mac).font(.caption.monospaced()).foregroundColor(.gray)
                         }
                         Spacer()
                         Text(dev.isonline ? "在线" : "离线")
                             .font(.caption2)
                             .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(dev.isonline ? Color.green.opacity(0.15) : Color.gray.opacity(0.15))
+                            .background(dev.isonline ? Color.green.opacity(0.18) : Color.gray.opacity(0.2))
                             .cornerRadius(6)
-                            .foregroundColor(dev.isonline ? .green : .secondary)
+                            .foregroundColor(dev.isonline ? .green : .gray)
                     }
                 }
                 .listStyle(.plain)
                 .frame(height: 120)
 
                 HStack {
-                    Text(wakeMessage).font(.caption).foregroundColor(.secondary)
+                    Text(wakeMessage).font(.caption).foregroundColor(.gray)
                     Spacer()
                 }
                 Button {
@@ -552,6 +561,20 @@ struct MainView: View {
             } else {
                 Text("--").foregroundColor(.gray.opacity(0.5))
             }
+        }
+    }
+
+    // 深色面板：与功率显示面板风格完全一致
+    private func darkPanel<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(red: 0.05, green: 0.07, blue: 0.09))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color(white: 0.18), lineWidth: 1)
+                )
+            content()
+                .padding(8)
         }
     }
 
