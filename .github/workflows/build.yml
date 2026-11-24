@@ -40,7 +40,13 @@ jobs:
         run: |
           APP="build/Build/Products/Release-iphoneos/WakeUpIOS.app"
           test -d "$APP" || { echo "App bundle not found"; find build -name '*.app'; exit 1; }
-          ldid -Sentitlements.plist "$APP/WakeUpIOS"
+          echo "=== Before ldid ==="
+          ls -la "$APP/WakeUpIOS"
+          echo "=== ldid -S entitlements.plist ==="
+          ldid -S entitlements.plist "$APP/WakeUpIOS"
+          echo "=== After ldid ==="
+          otool -l "$APP/WakeUpIOS" 2>&1 | grep -A3 LC_CODE_SIGNATURE || echo "No CodeSignature segment"
+          echo "=== IPA Pack ==="
 
       - name: Pack IPA
         run: |
