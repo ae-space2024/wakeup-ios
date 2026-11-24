@@ -18,6 +18,19 @@ final class AppState: ObservableObject {
     @Published var gizStatus: String = ""
     @Published var maxPowerW: Double? = nil
     @Published var minPowerW: Double? = nil
+    @Published var powerHistory: [Double] = []
+
+    /// 追加一条功率记录，最多保留 60 条
+    func appendPowerHistory(_ value: Double) {
+        powerHistory.append(value)
+        if powerHistory.count > 60 {
+            powerHistory.removeFirst(powerHistory.count - 60)
+        }
+    }
+
+    func clearPowerHistory() {
+        powerHistory.removeAll()
+    }
 
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()

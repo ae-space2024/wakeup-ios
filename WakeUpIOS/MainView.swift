@@ -75,6 +75,7 @@ struct MainView: View {
                     if let p = r.powerW, p.isFinite {
                         if state.maxPowerW == nil || p > state.maxPowerW! { state.maxPowerW = p }
                         if state.minPowerW == nil || p < state.minPowerW! { state.minPowerW = p }
+                        state.appendPowerHistory(p)
                     }
                 }
             }
@@ -175,11 +176,11 @@ struct MainView: View {
                     Label(state.activePgy?.sn ?? "账户", systemImage: "person.circle")
                         .font(.caption)
                 }
-                Spacer()
                 Button { Task { await loadWakeDevices() } } label: {
                     Image(systemName: "arrow.clockwise")
                 }.font(.caption)
                     .disabled(wakeBusy)
+                Spacer()
                 Button("退出") { wakeLogout() }.font(.caption)
             }
 
@@ -312,11 +313,11 @@ struct MainView: View {
                 .onChange(of: powerSelectedDid) { new in
                     if let did = new { powerStartMonitor(did: did) }
                 }
-                Spacer()
                 Button { Task { await loadPowerDevices() } } label: {
                     Image(systemName: "arrow.clockwise")
                 }.font(.caption)
                     .disabled(powerBusy)
+                Spacer()
                 Button("退出") { powerLogout() }.font(.caption)
             }
 
@@ -373,6 +374,9 @@ struct MainView: View {
                     .font(.caption2)
                     .foregroundColor(.gray)
 
+                // 功率波形图（黄色半透明、圆滑曲线）
+                powerWaveform
+
                 Divider().background(Color(white: 0.15)).padding(.vertical, 2)
 
                 // MAX / MIN 功率
@@ -392,7 +396,104 @@ struct MainView: View {
             }
             .padding(8)
         }
-        .frame(height: 260)
+        .frame(height: 330)
+    }
+
+    // 功率波形图：黄色半透明，Catmull-Rom 圆滑曲线
+    private var powerWaveform: some View {
+        let history = state.powerHistory
+        let w: CGFloat = 240
+        let h: CGFloat = 56
+
+        if history.count < 2 {
+            return AnyView(
+                Text("等待数据...")
+                    .font(.caption2)
+                    .foregroundColor(.gray.opacity(0.5))
+                    .frame(height: h)
+            )
+        }
+
+        // 计算 y 轴范围，留适当边距
+        let minV = history.min() ?? 0
+        let maxV = history.max() ?? 1
+        let range = max(maxV - minV, 0.001)
+        let padY: CGFloat = 6
+
+        // 生成 Catmull-Rom 插值点
+        let pts: [CGPoint] = {
+            var result: [CGPoint] = []
+            let n = history.count
+            let step = w / CGFloat(n - 1)
+            for i in 0..<(n - 1) {
+                let t0 = Double(max(i - 1, 0))
+                let t1 = Double(i)
+                let t2 = Double(i + 1)
+                let t3 = Double(min(i + 2, n - 1))
+                // 采样 8 段以获得平滑曲线
+                let segments = 8
+                for s in 0...segments {
+                    let t = CGFloat(s) / CGFloat(segments)
+                    let tt = t
+                    let p0x = (t0) * step
+                    let p1x = (t1) * step
+                    let p2x = (t2) * step
+                    let p3x = (t3) * step
+
+                    // Catmull-Rom 公式
+                    let c1x = p1x + (p2x - p0x) / 6
+                    let c2x = p2x - (p3x - p1x) / 6
+                    let x = (1 - tt) * (1 - tt) * (1 - tt) * p1x +
+                            3 * (1 - tt) * (1 - tt) * tt * c1x +
+                            3 * (1 - tt) * tt * tt * c2x +
+                            tt * tt * tt * p2x
+
+                    let y1 = CGFloat(history[Int(t1)])
+                    let y2 = CGFloat(history[Int(t2)])
+                    let y0 = CGFloat(history[Int(t0)])
+                    let y3 = CGFloat(history[Int(t3)])
+                    let c1y = y1 + (y2 - y0) / 6
+                    let c2y = y2 - (y3 - y1) / 6
+                    let y = h - padY - ((1 - tt) * (1 - tt) * (1 - tt) * y1 +
+                                       3 * (1 - tt) * (1 - tt) * tt * c1y +
+                                       3 * (1 - tt) * tt * tt * c2y +
+                                       tt * tt * tt * y2 - minV) / range * (h - 2 * padY)
+
+                    result.append(CGPoint(x: x, y: y))
+                }
+            }
+            return result
+        }()
+
+        let path = Path { p in
+            if let first = pts.first {
+                p.move(to: first)
+                for pt in pts.dropFirst() {
+                    p.addLine(to: pt)
+                }
+            }
+        }
+
+        return AnyView(
+            Canvas { context, _ in
+                // 填充区域（半透明黄色）
+                var fillPath = path
+                let last = pts.last!
+                let first = pts.first!
+                fillPath.addLine(to: CGPoint(x: last.x, y: h))
+                fillPath.addLine(to: CGPoint(x: first.x, y: h))
+                fillPath.closeSubpath()
+                context.fill(fillPath, with: .color(Color.yellow.opacity(0.15)))
+
+                // 曲线描边
+                context.stroke(
+                    path,
+                    with: .color(Color.yellow.opacity(0.7)),
+                    lineWidth: 1.5
+                )
+            }
+            .frame(width: w, height: h)
+        )
     }
 
     // 状态指示灯：实时推送=绿色闪烁，轮询=黄色，断开=红色
@@ -503,7 +604,7 @@ struct MainView: View {
                 try await PgyService.shared.wake(acc, mac: mac)
                 await MainActor.run {
                     wakeBusy = false
-                    wakeAlertText = "已向设备 \(mac) 发送开机指令。\n电脑约 1~2 分钟后启动。"
+                    wakeMessage = "已向设备 \(mac) 发送开机指令，电脑约 1~2 分钟后启动。"
                 }
                 await loadWakeDevices()
             } catch {
@@ -567,6 +668,7 @@ struct MainView: View {
     private func powerStartMonitor(did: String) {
         state.maxPowerW = nil
         state.minPowerW = nil
+        state.clearPowerHistory()
         gizService.subscribe(did: did)
         state.gizStatus = ""
         Task {
