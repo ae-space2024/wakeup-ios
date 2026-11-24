@@ -414,7 +414,7 @@ struct MainView: View {
                 if wakeSelectedMac == nil || !list.contains(where: { $0.mac == wakeSelectedMac }) {
                     wakeSelectedMac = list.first?.mac
                 }
-                wakeMessage = "共 \(list.count) 台设备，选中后点"开机""
+                wakeMessage = "共 \(list.count) 台设备，选中后点开机"
             }
         } catch {
             await MainActor.run { wakeMessage = error.localizedDescription }
