@@ -68,7 +68,13 @@ struct MainView: View {
                 if a.rememberPassword { powerPassword = state.gizPassword(for: a.username) }
             }
             gizService.onReading = { r in
-                DispatchQueue.main.async { state.reading = r }
+                DispatchQueue.main.async {
+                    state.reading = r
+                    if let p = r.powerW, p.isFinite {
+                        if state.maxPowerW == nil || p > state.maxPowerW! { state.maxPowerW = p }
+                        if state.minPowerW == nil || p < state.minPowerW! { state.minPowerW = p }
+                    }
+                }
             }
             gizService.onError = { msg in
                 DispatchQueue.main.async { state.gizStatus = msg }
@@ -339,6 +345,15 @@ struct MainView: View {
                 )
 
             VStack(spacing: 8) {
+                // 状态指示灯 + 连接状态
+                HStack(spacing: 6) {
+                    statusDot
+                    Text(statusText)
+                        .font(.caption2)
+                        .foregroundColor(.gray)
+                    Spacer()
+                }
+
                 if let p = r?.powerW {
                     Text(String(format: "%.1f", p))
                         .font(.system(size: 52, weight: .bold, design: .monospaced))
@@ -357,6 +372,12 @@ struct MainView: View {
 
                 Divider().background(Color(white: 0.15)).padding(.vertical, 2)
 
+                // MAX / MIN 功率
+                HStack(spacing: 16) {
+                    powerStat("MAX", state.maxPowerW)
+                    powerStat("LOW", state.minPowerW)
+                }
+
                 HStack(spacing: 12) {
                     powerMetric("电压", r?.voltageV, 1, "V")
                     powerMetric("电流", r?.currentA, 3, "A")
@@ -368,7 +389,55 @@ struct MainView: View {
             }
             .padding(8)
         }
-        .frame(height: 180)
+        .frame(height: 260)
+    }
+
+    // 状态指示灯：实时推送=绿色闪烁，轮询=黄色，断开=红色
+    private var statusDot: some View {
+        let color: Color
+        let blink: Bool
+        switch gizService.connState {
+        case .realtime:
+            color = .green
+            blink = true
+        case .polling:
+            color = .yellow
+            blink = false
+        case .disconnected:
+            color = .red
+            blink = false
+        }
+        return TimelineView(.periodic(from: .now, by: 1.0)) { context in
+            Circle()
+                .fill(color)
+                .frame(width: 10, height: 10)
+                .opacity(blink ? (context.phase.value < 0.5 ? 1.0 : 0.25) : 1.0)
+                .shadow(color: color.opacity(0.6), radius: 4)
+        }
+    }
+
+    private var statusText: String {
+        switch gizService.connState {
+        case .realtime: return "实时推送"
+        case .polling: return "轮询刷新"
+        case .disconnected: return "连接断开"
+        }
+    }
+
+    private func powerStat(_ label: String, _ value: Double?) -> some View {
+        VStack(spacing: 2) {
+            Text(label)
+                .font(.caption2.bold())
+                .foregroundColor(.yellow)
+            if let v = value {
+                Text(String(format: "%.1f", v))
+                    .foregroundColor(.yellow)
+                    .monospacedDigit()
+            } else {
+                Text("--")
+                    .foregroundColor(.gray.opacity(0.5))
+            }
+        }
     }
 
     private func powerMetric(_ name: String, _ value: Double?, _ digits: Int, _ unit: String) -> some View {
@@ -495,11 +564,19 @@ struct MainView: View {
     }
 
     private func powerStartMonitor(did: String) {
+        state.maxPowerW = nil
+        state.minPowerW = nil
         gizService.subscribe(did: did)
         state.gizStatus = ""
         Task {
             if let r = try? await gizService.readPower(did: did) {
-                await MainActor.run { state.reading = r }
+                await MainActor.run {
+                    state.reading = r
+                    if let p = r.powerW, p.isFinite {
+                        state.maxPowerW = p
+                        state.minPowerW = p
+                    }
+                }
             }
         }
     }
@@ -515,9 +592,12 @@ struct MainView: View {
 
     private func powerLogout() {
         gizService.stop()
+        gizService.connState = .disconnected
         if let u = state.activeGiz?.username { state.removeGiz(username: u) }
         state.gizDevices = []
         state.reading = nil
+        state.maxPowerW = nil
+        state.minPowerW = nil
         powerSelectedDid = nil
         powerPassword = ""
         state.gizStatus = ""

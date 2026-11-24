@@ -16,6 +16,8 @@ final class AppState: ObservableObject {
     @Published var gizDevices: [GizDevice] = []
     @Published var reading: PowerReading?
     @Published var gizStatus: String = ""
+    @Published var maxPowerW: Double? = nil
+    @Published var minPowerW: Double? = nil
 
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
@@ -77,7 +79,6 @@ final class AppState: ObservableObject {
             KeychainStore.delete("pgy.\(a.sn)")
         }
         if let i = pgyAccounts.firstIndex(where: { $0.sn == a.sn }) {
-            a.rememberPassword = pgyAccounts[i].rememberPassword
             pgyAccounts[i] = a
         } else {
             pgyAccounts.append(a)
@@ -109,7 +110,6 @@ final class AppState: ObservableObject {
             KeychainStore.delete("giz.\(a.username)")
         }
         if let i = gizAccounts.firstIndex(where: { $0.username == a.username }) {
-            a.rememberPassword = gizAccounts[i].rememberPassword
             gizAccounts[i] = a
         } else {
             gizAccounts.append(a)

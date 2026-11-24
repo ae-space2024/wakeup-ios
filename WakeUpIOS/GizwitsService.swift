@@ -73,6 +73,12 @@ struct PowerReading {
 final class GizwitsService: NSObject, ObservableObject {
     static let shared = GizwitsService()
 
+    enum ConnState {
+        case realtime   // WebSocket 实时推送
+        case polling    // HTTP 轮询
+        case disconnected // 连接失败
+    }
+
     private let appId = "1d5b0ff021614f42a44954c362d65992"
     private let apiHost = "api.gizwits.com"
 
@@ -80,6 +86,7 @@ final class GizwitsService: NSObject, ObservableObject {
     @Published private(set) var token: String = ""
     @Published private(set) var devices: [GizDevice] = []
     @Published private(set) var connectionMode: String = "未连接"
+    @Published var connState: ConnState = .disconnected
 
     var onReading: ((PowerReading) -> Void)?
     var onError: ((String) -> Void)?
@@ -234,6 +241,7 @@ final class GizwitsService: NSObject, ObservableObject {
 
         guard let dev = devices.first(where: { $0.did == did }) else {
             connectionMode = "轮询刷新（无 host）"
+            connState = .polling
             onError?("设备不在绑定列表中，使用轮询模式")
             return
         }
@@ -263,6 +271,7 @@ final class GizwitsService: NSObject, ObservableObject {
 
         DispatchQueue.main.async {
             self.connectionMode = "实时推送"
+            self.connState = .realtime
             self.heartbeat = Timer.scheduledTimer(withTimeInterval: 45, repeats: true) { [weak self] _ in
                 self?.send(cmd: "ping", data: [:])
             }
@@ -291,6 +300,7 @@ final class GizwitsService: NSObject, ObservableObject {
             case .failure:
                 DispatchQueue.main.async {
                     self.connectionMode = "推送中断，轮询中"
+                    self.connState = .polling
                 }
                 self.onError?("WebSocket 断开，已切换到轮询")
                 self.stop()
@@ -333,7 +343,10 @@ final class GizwitsService: NSObject, ObservableObject {
         wsTask?.cancel()
         wsTask = nil
         if !currentDid.isEmpty {
-            DispatchQueue.main.async { self.connectionMode = "轮询刷新" }
+            DispatchQueue.main.async {
+                self.connectionMode = "轮询刷新"
+                self.connState = .polling
+            }
         }
     }
 }
