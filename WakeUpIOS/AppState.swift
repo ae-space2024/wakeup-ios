@@ -86,11 +86,8 @@ final class AppState: ObservableObject {
     func upsertPgy(_ account: PgyAccount, password: String, remember: Bool) {
         var a = account
         a.rememberPassword = remember
-        if remember {
-            KeychainStore.set(password, forKey: "pgy.\(a.sn)")
-        } else {
-            KeychainStore.delete("pgy.\(a.sn)")
-        }
+        // 始终保存密码到 Keychain，便于 token 过期后自动重新登录
+        KeychainStore.set(password, forKey: "pgy.\(a.sn)")
         if let i = pgyAccounts.firstIndex(where: { $0.sn == a.sn }) {
             pgyAccounts[i] = a
         } else {
@@ -117,11 +114,8 @@ final class AppState: ObservableObject {
     func upsertGiz(_ account: GizAccount, password: String, remember: Bool) {
         var a = account
         a.rememberPassword = remember
-        if remember {
-            KeychainStore.set(password, forKey: "giz.\(a.username)")
-        } else {
-            KeychainStore.delete("giz.\(a.username)")
-        }
+        // 始终保存密码到 Keychain，便于 token 过期后自动重新登录
+        KeychainStore.set(password, forKey: "giz.\(a.username)")
         if let i = gizAccounts.firstIndex(where: { $0.username == a.username }) {
             gizAccounts[i] = a
         } else {

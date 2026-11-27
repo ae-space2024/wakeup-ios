@@ -60,15 +60,36 @@ struct MainView: View {
             Text(wakeAlertText ?? "")
         }
         .onReceive(timer) { _ in powerPoll() }
+        .onChange(of: wakeExpanded) { newVal in
+            UserDefaults.standard.set(newVal, forKey: "wake.expanded")
+        }
+        .onChange(of: powerExpanded) { newVal in
+            UserDefaults.standard.set(newVal, forKey: "power.expanded")
+        }
         .onAppear {
+            // 恢复卡片展开状态
+            wakeExpanded = UserDefaults.standard.object(forKey: "wake.expanded") as? Bool ?? false
+            powerExpanded = UserDefaults.standard.object(forKey: "power.expanded") as? Bool ?? false
+
+            // 恢复功率监控上次选中的设备
+            if let did = UserDefaults.standard.string(forKey: "power.selectedDid") {
+                powerSelectedDid = did
+            }
+
+            // 远程开机：自动填充 SN + 密码（密码已保存在 Keychain，无需重新输入）
             if wakeSn.isEmpty, let a = state.activePgy {
                 wakeSn = a.sn
-                if a.rememberPassword { wakePassword = state.pgyPassword(for: a.sn) }
+                wakePassword = state.pgyPassword(for: a.sn)
             }
+            // 功率监控：自动填充用户名 + 密码
             if powerUsername.isEmpty, let a = state.activeGiz {
                 powerUsername = a.username
-                if a.rememberPassword { powerPassword = state.gizPassword(for: a.username) }
+                powerPassword = state.gizPassword(for: a.username)
             }
+
+            // 自动恢复连接与设备列表
+            autoRestoreConnections()
+
             gizService.onReading = { r in
                 DispatchQueue.main.async {
                     state.reading = r
@@ -322,7 +343,12 @@ struct MainView: View {
                 }
                 .pickerStyle(.menu)
                 .onChange(of: powerSelectedDid) { new in
-                    if let did = new { powerStartMonitor(did: did) }
+                    if let did = new {
+                        UserDefaults.standard.set(did, forKey: "power.selectedDid")
+                        powerStartMonitor(did: did)
+                    } else {
+                        UserDefaults.standard.removeObject(forKey: "power.selectedDid")
+                    }
                 }
                 Button { Task { await loadPowerDevices() } } label: {
                     Image(systemName: "arrow.clockwise")
@@ -581,6 +607,21 @@ struct MainView: View {
     }
 
     // ==================================================================
+    // 自动恢复连接：回到前台时自动用已保存的密码重新登录、刷新设备列表
+    // ==================================================================
+    private func autoRestoreConnections() {
+        // 远程开机：已保存账户则自动刷新设备列表
+        if let acc = state.activePgy, !acc.accessToken.isEmpty {
+            Task { await loadWakeDevices() }
+        }
+        // 功率监控：已保存账户则自动恢复登录 + 刷新设备列表 + 恢复监控
+        if let acc = state.activeGiz, !acc.token.isEmpty {
+            powerPassword = state.gizPassword(for: acc.username)
+            Task { await loadPowerDevices() }
+        }
+    }
+
+    // ==================================================================
     // 远程开机逻辑
     // ==================================================================
     private func doWakeLogin() {
@@ -613,7 +654,19 @@ struct MainView: View {
                 wakeMessage = "共 \(list.count) 台设备，选中后点开机"
             }
         } catch {
-            await MainActor.run { wakeMessage = error.localizedDescription }
+            // Token 过期，用已保存的密码自动重新登录
+            if !wakePassword.isEmpty {
+                await MainActor.run { wakeMessage = "Token 过期，正在自动重新登录 ..." }
+                do {
+                    let newAcc = try await PgyService.shared.login(sn: wakeSn, password: wakePassword)
+                    state.upsertPgy(newAcc, password: wakePassword, remember: wakeRemember)
+                    await loadWakeDevices()
+                } catch {
+                    await MainActor.run { wakeMessage = error.localizedDescription }
+                }
+            } else {
+                await MainActor.run { wakeMessage = error.localizedDescription }
+            }
         }
         await MainActor.run { wakeBusy = false }
     }
@@ -678,15 +731,32 @@ struct MainView: View {
             let list = try await gizService.listDevices()
             await MainActor.run { state.gizDevices = list }
             await MainActor.run {
+                let prevDid = powerSelectedDid
                 if powerSelectedDid == nil || !list.contains(where: { $0.id == powerSelectedDid }) {
                     powerSelectedDid = list.first?.did
                 }
                 state.gizStatus = "共 \(list.count) 台设备"
                 powerBusy = false
-                if let did = powerSelectedDid { powerStartMonitor(did: did) }
+                // 选中设备未变化时 onChange 不会触发，需手动启动监控
+                if powerSelectedDid == prevDid {
+                    if let did = powerSelectedDid { powerStartMonitor(did: did) }
+                }
             }
         } catch {
-            await MainActor.run { state.gizStatus = error.localizedDescription; powerBusy = false }
+            // Token 过期，用已保存的密码自动重新登录
+            if !powerPassword.isEmpty {
+                await MainActor.run { state.gizStatus = "Token 过期，正在自动重新登录 ..." }
+                do {
+                    try await gizService.login(username: powerUsername, password: powerPassword)
+                    let newAcc = GizAccount(username: powerUsername, uid: gizService.uid, token: gizService.token)
+                    state.upsertGiz(newAcc, password: powerPassword, remember: powerRemember)
+                    await loadPowerDevices()
+                } catch {
+                    await MainActor.run { state.gizStatus = error.localizedDescription; powerBusy = false }
+                }
+            } else {
+                await MainActor.run { state.gizStatus = error.localizedDescription; powerBusy = false }
+            }
         }
     }
 
@@ -727,6 +797,7 @@ struct MainView: View {
         state.maxPowerW = nil
         state.minPowerW = nil
         powerSelectedDid = nil
+        UserDefaults.standard.removeObject(forKey: "power.selectedDid")
         powerPassword = ""
         state.gizStatus = ""
     }
