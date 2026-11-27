@@ -91,14 +91,7 @@ struct MainView: View {
             autoRestoreConnections()
 
             gizService.onReading = { r in
-                DispatchQueue.main.async {
-                    state.reading = r
-                    if let p = r.powerW, p.isFinite {
-                        if state.maxPowerW == nil || p > state.maxPowerW! { state.maxPowerW = p }
-                        if state.minPowerW == nil || p < state.minPowerW! { state.minPowerW = p }
-                        state.appendPowerHistory(p)
-                    }
-                }
+                DispatchQueue.main.async { self.processReading(r) }
             }
             gizService.onError = { msg in
                 DispatchQueue.main.async { state.gizStatus = msg }
@@ -768,13 +761,7 @@ struct MainView: View {
         state.gizStatus = ""
         Task {
             if let r = try? await gizService.readPower(did: did) {
-                await MainActor.run {
-                    state.reading = r
-                    if let p = r.powerW, p.isFinite {
-                        state.maxPowerW = p
-                        state.minPowerW = p
-                    }
-                }
+                await MainActor.run { self.processReading(r) }
             }
         }
     }
@@ -783,8 +770,24 @@ struct MainView: View {
         guard let did = powerSelectedDid, let acc = state.activeGiz, !acc.token.isEmpty else { return }
         Task {
             if let r = try? await gizService.readPower(did: did) {
-                await MainActor.run { state.reading = r }
+                await MainActor.run {
+                    self.processReading(r)
+                    // 轮询模式下主动尝试重连 WebSocket，恢复实时推送
+                    if self.gizService.connState == .polling {
+                        self.gizService.subscribe(did: did)
+                    }
+                }
             }
+        }
+    }
+
+    /// 统一处理功率读数：更新显示、MAX/MIN、波形历史
+    private func processReading(_ r: PowerReading) {
+        state.reading = r
+        if let p = r.powerW, p.isFinite {
+            if state.maxPowerW == nil || p > state.maxPowerW! { state.maxPowerW = p }
+            if state.minPowerW == nil || p < state.minPowerW! { state.minPowerW = p }
+            state.appendPowerHistory(p)
         }
     }
 

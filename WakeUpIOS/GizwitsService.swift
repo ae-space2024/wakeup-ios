@@ -96,6 +96,8 @@ final class GizwitsService: NSObject, ObservableObject {
     private var mergedAttrs: [String: Any] = [:]
     private var currentDid: String = ""
     private var stopped = false
+    private var reconnectAttempts = 0
+    private let maxReconnectAttempts = 5
 
     private lazy var httpSession: URLSession = {
         let cfg = URLSessionConfiguration.default
@@ -238,6 +240,7 @@ final class GizwitsService: NSObject, ObservableObject {
         stopped = false
         currentDid = did
         mergedAttrs = [:]
+        reconnectAttempts = 0
 
         guard let dev = devices.first(where: { $0.did == did }) else {
             connectionMode = "轮询刷新（无 host）"
@@ -299,11 +302,38 @@ final class GizwitsService: NSObject, ObservableObject {
                 self.receiveLoop()
             case .failure:
                 DispatchQueue.main.async {
-                    self.connectionMode = "推送中断，轮询中"
+                    self.connectionMode = "推送中断，重连中..."
                     self.connState = .polling
                 }
-                self.onError?("WebSocket 断开，已切换到轮询")
-                self.stop()
+                self.onError?("WebSocket 断开，正在尝试重连")
+                self.tryReconnect()
+            }
+        }
+    }
+
+    /// 自动重连：指数退避，最多 maxReconnectAttempts 次
+    private func tryReconnect() {
+        if stopped || currentDid.isEmpty { return }
+        reconnectAttempts += 1
+        guard reconnectAttempts <= maxReconnectAttempts else {
+            DispatchQueue.main.async {
+                self.connectionMode = "轮询刷新（重连失败）"
+                self.connState = .polling
+            }
+            self.onError?("WebSocket 重连失败，已切换到轮询模式")
+            self.stop()
+            return
+        }
+        // 指数退避：1s, 2s, 4s, 8s, 16s
+        let delay = Double(1 << (reconnectAttempts - 1))
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self = self, !self.stopped else { return }
+            // 设备列表已加载时直接重连，否则等待上层调用 subscribe
+            if self.devices.first(where: { $0.did == self.currentDid }) != nil {
+                self.subscribe(did: self.currentDid)
+            } else {
+                // 设备列表未加载，请求上层重新加载
+                self.onError?("WebSocket 重连需要重新获取设备列表")
             }
         }
     }
